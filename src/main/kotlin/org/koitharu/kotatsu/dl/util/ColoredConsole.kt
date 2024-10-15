@@ -12,26 +12,30 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 
 // https://github.com/marcelmatula/colored-console
-interface ColoredConsole {
+sealed interface ColoredConsole {
 
     sealed class Style {
 
         @Suppress("unused")
-        val bg: Style get() = when (this){
-            is Simple -> if (code.isColor) copy(code = code + BACKGROUND_SHIFT) else this
-            is Composite -> if (parent is Simple && parent.code.isColor)
-                copy(parent = parent.copy(code = parent.code + BACKGROUND_SHIFT))
-            else this
-            is NotApplied -> this
-        }
+        val bg: Style
+            get() = when (this) {
+                is Simple -> if (code.isColor) copy(code = code + BACKGROUND_SHIFT) else this
+                is Composite -> if (parent is Simple && parent.code.isColor)
+                    copy(parent = parent.copy(code = parent.code + BACKGROUND_SHIFT))
+                else this
 
-        val bright: Style get() = when (this){
-            is Simple -> if (code.isNormalColor) copy(code = code + BRIGHT_SHIFT) else this
-            is Composite -> if (parent is Simple && parent.code.isNormalColor)
-                copy(parent = parent.copy(code = parent.code + BRIGHT_SHIFT))
-            else this
-            is NotApplied -> this
-        }
+                is NotApplied -> this
+            }
+
+        val bright: Style
+            get() = when (this) {
+                is Simple -> if (code.isNormalColor) copy(code = code + BRIGHT_SHIFT) else this
+                is Composite -> if (parent is Simple && parent.code.isNormalColor)
+                    copy(parent = parent.copy(code = parent.code + BRIGHT_SHIFT))
+                else this
+
+                is NotApplied -> this
+            }
 
         abstract fun wrap(text: String): String
 
@@ -68,65 +72,84 @@ interface ColoredConsole {
         }
     }
 
-    private val String.firstAnsi get() = reEscape.find(this)?.let { matcher ->
-        if( matcher.range.start != 0) null else matcher.groups[1]?.value?.toIntOrNull()
-    }
+    private val String.firstAnsi
+        get() = reEscape.find(this)?.let { matcher ->
+            if (matcher.range.start != 0) null else matcher.groups[1]?.value?.toIntOrNull()
+        }
 
-    val String.bright get() = firstAnsi.let { code ->
-        if (code?.isNormalColor == true) substring(0, 2) + (code + BRIGHT_SHIFT) + substring(4) else this
-    }
+    val String.bright
+        get() = firstAnsi.let { code ->
+            if (code?.isNormalColor == true) substring(0, 2) + (code + BRIGHT_SHIFT) + substring(4) else this
+        }
 
-    val String.bg get() = firstAnsi.let { code ->
-        if (code?.isColor == true) substring(0, 2) + (code + BACKGROUND_SHIFT) + substring(4) else this
-    }
+    val String.bg
+        get() = firstAnsi.let { code ->
+            if (code?.isColor == true) substring(0, 2) + (code + BACKGROUND_SHIFT) + substring(4) else this
+        }
 
     // region styles
     val bold: Style get() = Style.Simple(HIGH_INTENSITY)
     val <N : Style> N.bold: Style get() = this + this@ColoredConsole.bold
     val <N> N.bold get() = wrap(HIGH_INTENSITY)
-    fun <N> N.bold(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.bold?: this.toString()
+    fun <N> N.bold(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.bold ?: this.toString()
+
     fun bold(text: Any) = text.wrap(HIGH_INTENSITY)
 
     val faint: Style get() = Style.Simple(LOW_INTENSITY)
     val <N : Style> N.faint: Style get() = this + this@ColoredConsole.faint
     val <N> N.faint get() = wrap(LOW_INTENSITY)
-    fun <N> N.faint(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.faint?: this.toString()
+    fun <N> N.faint(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.faint ?: this.toString()
+
     fun faint(text: Any) = text.wrap(LOW_INTENSITY)
 
     val italic: Style get() = Style.Simple(ITALIC)
     val <N : Style> N.italic: Style get() = this + this@ColoredConsole.italic
     val <N> N.italic get() = wrap(ITALIC)
-    fun <N> N.italic(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.italic?: this.toString()
+    fun <N> N.italic(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.italic ?: this.toString()
+
     fun italic(text: String) = text.wrap(ITALIC)
 
     val underline: Style get() = Style.Simple(UNDERLINE)
     val <N : Style> N.underline: Style get() = this + this@ColoredConsole.underline
     val <N> N.underline get() = wrap(UNDERLINE)
-    fun <N> N.underline(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.underline?: this.toString()
+    fun <N> N.underline(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.underline ?: this.toString()
+
     fun underline(text: String) = text.wrap(UNDERLINE)
 
     val blink: Style get() = Style.Simple(BLINK)
     val <N : Style> N.blink: Style get() = this + this@ColoredConsole.blink
     val <N> N.blink get() = wrap(BLINK)
-    fun <N> N.blink(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.blink?: this.toString()
+    fun <N> N.blink(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.blink ?: this.toString()
+
     fun blink(text: String) = text.wrap(BLINK)
 
     val reverse: Style get() = Style.Simple(REVERSE)
     val <N : Style> N.reverse: Style get() = this + this@ColoredConsole.reverse
     val <N> N.reverse get() = wrap(REVERSE)
-    fun <N> N.reverse(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.reverse?: this.toString()
+    fun <N> N.reverse(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.reverse ?: this.toString()
+
     fun reverse(text: String) = text.wrap(REVERSE)
 
     val hidden: Style get() = Style.Simple(HIDDEN)
     val <N : Style> N.hidden: Style get() = this + this@ColoredConsole.hidden
     val <N> N.hidden get() = wrap(HIDDEN)
-    fun <N> N.hidden(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.hidden?: this.toString()
+    fun <N> N.hidden(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.hidden ?: this.toString()
+
     fun hidden(text: String) = text.wrap(HIDDEN)
 
     val strike: Style get() = Style.Simple(STRIKE)
     val <N : Style> N.strike: Style get() = this + this@ColoredConsole.strike
     val <N> N.strike get() = wrap(STRIKE)
-    fun <N> N.strike(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.strike?: this.toString()
+    fun <N> N.strike(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.strike ?: this.toString()
+
     fun strike(text: String) = text.wrap(STRIKE)
     // endregion
 
@@ -134,49 +157,53 @@ interface ColoredConsole {
     val black: Style get() = Style.Simple(BLACK)
     val <N : Style> N.black: Style get() = this + this@ColoredConsole.black
     val <N> N.black get() = wrap(BLACK)
-    fun <N> N.black(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.black?: toString()
+    fun <N> N.black(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.black ?: toString()
     fun black(text: String) = text.wrap(BLACK)
 
     val red: Style get() = Style.Simple(RED)
     val <N : Style> N.red: Style get() = this + this@ColoredConsole.red
     val <N> N.red get() = wrap(RED)
-    fun <N> N.red(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.red?: toString()
+    fun <N> N.red(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.red ?: toString()
     fun red(text: String) = text.wrap(RED)
 
     val green: Style get() = Style.Simple(GREEN)
     val <N : Style> N.green: Style get() = this + this@ColoredConsole.green
     val <N> N.green get() = wrap(GREEN)
-    fun <N> N.green(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.green?: toString()
+    fun <N> N.green(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.green ?: toString()
     fun green(text: String) = text.wrap(GREEN)
 
     val yellow: Style get() = Style.Simple(YELLOW)
     val <N : Style> N.yellow: Style get() = this + this@ColoredConsole.yellow
     val <N> N.yellow get() = wrap(YELLOW)
-    fun <N> N.yellow(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.yellow?: toString()
+    fun <N> N.yellow(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.yellow ?: toString()
+
     fun yellow(text: String) = text.wrap(YELLOW)
 
     val blue: Style get() = Style.Simple(BLUE)
     val <N : Style> N.blue: Style get() = this + this@ColoredConsole.blue
     val <N> N.blue get() = wrap(BLUE)
-    fun <N> N.blue(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.blue?: toString()
+    fun <N> N.blue(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.blue ?: toString()
     fun blue(text: String) = text.wrap(BLUE)
 
     val purple: Style get() = Style.Simple(PURPLE)
     val <N : Style> N.purple: Style get() = this + this@ColoredConsole.purple
     val <N> N.purple get() = wrap(PURPLE)
-    fun <N> N.purple(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.purple?: toString()
+    fun <N> N.purple(predicate: (N) -> Boolean = { true }) =
+        takeIf { predicate(this) }?.toString()?.purple ?: toString()
+
     fun purple(text: String) = text.wrap(PURPLE)
 
     val cyan: Style get() = Style.Simple(CYAN)
     val <N : Style> N.cyan: Style get() = this + this@ColoredConsole.cyan
     val <N> N.cyan get() = wrap(CYAN)
-    fun <N> N.cyan(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.cyan?: toString()
+    fun <N> N.cyan(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.cyan ?: toString()
     fun cyan(text: String) = text.wrap(CYAN)
 
     val white: Style get() = Style.Simple(WHITE)
     val <N : Style> N.white: Style get() = this + this@ColoredConsole.white
     val <N> N.white get() = wrap(WHITE)
-    fun <N> N.white(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.white?: toString()
+    fun <N> N.white(predicate: (N) -> Boolean = { true }) = takeIf { predicate(this) }?.toString()?.white ?: toString()
     fun white(text: String) = text.wrap(WHITE)
     // endregion
 
@@ -228,10 +255,12 @@ interface ColoredConsole {
         const val BRIGHT_WHITE = WHITE + BRIGHT_SHIFT
 
         val reEscape = Regex("\\u001B\\[([0-9]{1,2})m")
+
+        fun isSupported() = System.console() != null && System.getenv()["TERM"] != null
     }
 }
 
-private interface ColorConsoleDisabled : ColoredConsole {
+private object ColorConsoleDisabled : ColoredConsole {
 
     override val bold get() = NotApplied
     override val <N : Style> N.bold: Style get() = NotApplied
@@ -264,6 +293,8 @@ private interface ColorConsoleDisabled : ColoredConsole {
     override val <N : Style> N.white: Style get() = NotApplied
 }
 
+private object ColoredConsoleImpl : ColoredConsole
+
 private val Int.isNormalColor get() = this in BLACK..WHITE
 private val Int.isBrightColor get() = this in BRIGHT_BLACK..BRIGHT_WHITE
 private val Int.isColor get() = isNormalColor || isBrightColor
@@ -278,13 +309,7 @@ fun <R> colored(enabled: Boolean = true, block: ColoredConsole.() -> R): R {
     contract {
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
     }
-    check(true)
-    return if (enabled) object : ColoredConsole {}.block() else object : ColorConsoleDisabled {}.block()
+    return if (enabled && ColoredConsole.isSupported()) ColoredConsoleImpl.block() else ColorConsoleDisabled.block()
 }
 
-fun <R : Style> style(block: ColoredConsole.() -> R): R = object : ColoredConsole {}.block()
-
-@Suppress("unused")
-fun print(colored: Boolean = true, block: ColoredConsole.() -> String) = colored(colored) { print(block()) }
-
-fun println(colored: Boolean = true, block: ColoredConsole.() -> String) = colored(colored) { println(block()) }
+fun <R : Style> style(block: ColoredConsole.() -> R): R = ColoredConsoleImpl.block()
