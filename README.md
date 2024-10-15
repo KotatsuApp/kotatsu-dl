@@ -8,7 +8,7 @@ Easy-to-use cross-platform manga downloader with a lot of manga sources supporte
 # Installation
 
 ### For Windows/Linux/Mac users
-Just download the latest release and use it
+Just download the [latest release](https://github.com/KotatsuApp/kotatsu-dl/releases/latest) and use it
 
 ```shell
 java -jar ./kotatsu-dl.jar
@@ -31,8 +31,10 @@ Usage: kotatsu-dl [<options>] <link>
 Options:
   --dest, --destination=<value>  Output file or directory path. Default is current directory
   --format=(cbz|zip|dir)         Output format
+  -j, --jobs=<int>               Number of parallel jobs for downloading
   --throttle                     Slow down downloading to avoid blocking your IP address by server
   --chapters=<numbers or range>  Numbers of chapters to download. Can be a single numbers or range, e.g. "1-4,8,11" or "all"
+  -v, --verbose                  Show more information
   -h, --help                     Show this message and exit
 
 Arguments:
