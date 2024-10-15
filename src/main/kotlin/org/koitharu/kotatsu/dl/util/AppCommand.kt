@@ -39,7 +39,7 @@ abstract class AppCommand(name: String) : CoreSuspendingCliktCommand(name) {
         val exitCode = runCatchingCancellable {
             invoke()
         }.onFailure { e ->
-            System.err.println(e.message)
+            e.printStackTrace()
         }.getOrDefault(1)
         throw ProgramResult(exitCode)
     }

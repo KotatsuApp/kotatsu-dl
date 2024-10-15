@@ -3,12 +3,12 @@ package org.koitharu.kotatsu.dl
 import com.github.ajalt.clikt.command.main
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.arguments.argument
-import com.github.ajalt.clikt.parameters.options.convert
-import com.github.ajalt.clikt.parameters.options.flag
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.validate
+import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.file
+import com.github.ajalt.clikt.parameters.types.int
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koitharu.kotatsu.dl.download.DownloadFormat
 import org.koitharu.kotatsu.dl.download.MangaDownloader
 import org.koitharu.kotatsu.dl.parsers.MangaLoaderContextImpl
@@ -41,6 +41,12 @@ class Main : AppCommand(name = "kotatsu-dl") {
         ignoreCase = true,
         key = { it.name.lowercase() },
     )
+    private val parallelism: Int by option(
+        names = arrayOf("-j", "--jobs"),
+        help = "Number of parallel jobs for downloading",
+    ).int().default(1).check("Jobs count should be between 1 and 10") {
+        it in 1..10
+    }
     private val throttle: Boolean by option(
         names = arrayOf("--throttle"),
         help = "Slow down downloading to avoid blocking your IP address by server",
@@ -60,7 +66,7 @@ class Main : AppCommand(name = "kotatsu-dl") {
     override suspend fun invoke(): Int {
         val context = MangaLoaderContextImpl()
         val linkResolver = context.newLinkResolver(link)
-        print("Resolving link...")
+        print("Resolving link…")
         val source = linkResolver.getSource()
         if (source == null) {
             println()
@@ -112,8 +118,11 @@ class Main : AppCommand(name = "kotatsu-dl") {
             format = format,
             throttle = throttle,
             verbose = verbose,
+            parallelism = parallelism,
         )
-        val file = downloader.download()
+        val file = withContext(Dispatchers.Default) {
+            downloader.download()
+        }
         colored {
             print("Done.".green.bold)
             print(" Saved to ")

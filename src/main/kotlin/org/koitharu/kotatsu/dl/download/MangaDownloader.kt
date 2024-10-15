@@ -1,9 +1,9 @@
 package org.koitharu.kotatsu.dl.download
 
 import androidx.collection.MutableIntList
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import me.tongfei.progressbar.ProgressBar
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
@@ -35,12 +35,13 @@ class MangaDownloader(
     private val format: DownloadFormat?,
     private val throttle: Boolean,
     private val verbose: Boolean,
+    private val parallelism: Int,
 ) {
 
     private val progressBarStyle = ProgressBarStyle.builder()
         .rightBracket("]")
         .leftBracket("[")
-        .colorCode(ColoredConsole.BRIGHT_YELLOW.toByte())
+        .colorCode(if (ColoredConsole.isSupported()) ColoredConsole.BRIGHT_YELLOW.toByte() else 0)
         .block('#')
         .build()
 
@@ -57,7 +58,7 @@ class MangaDownloader(
             .setTaskName("Downloading")
             .clearDisplayOnFinish()
             .build()
-        progressBar.setExtraMessage("Preparing...")
+        progressBar.setExtraMessage("Preparing…")
         val tempDir = Files.createTempDirectory("kdl_").toFile()
         val counters = MutableIntList()
         val totalChapters = chaptersRange.size(chapters)
@@ -70,6 +71,7 @@ class MangaDownloader(
                     file.delete()
                 }
             }
+            val semaphore = Semaphore(parallelism)
             for (chapter in chapters.withIndex()) {
                 progressBar.setExtraMessage(chapter.value.name)
                 if (chapter.index !in chaptersRange) {
@@ -78,25 +80,31 @@ class MangaDownloader(
                 val pages = runFailsafe(progressBar) { parser.getPages(chapter.value) }
                 counters.add(pages.size)
                 progressBar.maxHint(counters.sum().toLong() + (totalChapters - counters.size) * pages.size)
-                for ((pageIndex, page) in pages.withIndex()) {
-                    runFailsafe(progressBar) {
-                        val url = parser.getPageUrl(page)
-                        val file = downloadFile(url, tempDir, parser.source)
-                        output.addPage(
-                            chapter = chapter,
-                            file = file,
-                            pageNumber = pageIndex,
-                            ext = getFileExtensionFromUrl(url).orEmpty(),
-                        )
-                        progressBar.step()
-                        if (file.extension == "tmp") {
-                            file.delete()
+                coroutineScope {
+                    pages.mapIndexed { pageIndex, page ->
+                        launch {
+                            semaphore.withPermit {
+                                runFailsafe(progressBar) {
+                                    val url = parser.getPageUrl(page)
+                                    val file = downloadFile(url, tempDir, parser.source)
+                                    output.addPage(
+                                        chapter = chapter,
+                                        file = file,
+                                        pageNumber = pageIndex,
+                                        ext = getFileExtensionFromUrl(url).orEmpty(),
+                                    )
+                                    progressBar.step()
+                                    if (file.extension == "tmp") {
+                                        file.delete()
+                                    }
+                                }
+                            }
                         }
-                    }
+                    }.joinAll()
                 }
                 output.flushChapter(chapter.value)
             }
-            progressBar.setExtraMessage("Finalizing...")
+            progressBar.setExtraMessage("Finalizing…")
             output.mergeWithExisting()
             output.finish()
             progressBar.close()
