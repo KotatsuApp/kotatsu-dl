@@ -20,10 +20,13 @@ import java.io.File
 
 class Main : AppCommand(name = "kotatsu-dl") {
 
-    private val link: String by argument()
+    private val link: String by argument(
+        name = "link",
+        help = "Direct link to the manga copied from browser as is",
+    )
     private val destination: File? by option(
         names = arrayOf("--dest", "--destination"),
-        help = "Output file or directory path",
+        help = "Output file or directory path. Default is current directory",
     ).convert {
         it.replaceFirst(Regex("^~"), System.getProperty("user.home"))
     }.file(
