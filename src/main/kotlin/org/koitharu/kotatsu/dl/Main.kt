@@ -52,6 +52,10 @@ class Main : AppCommand(name = "kotatsu-dl") {
     ).convert {
         ChaptersRange.parse(it)
     }.validate { range -> range.validate() }
+    private val verbose: Boolean by option(
+        names = arrayOf("-v", "--verbose"),
+        help = "Show more information"
+    ).flag(default = false)
 
     override suspend fun invoke(): Int {
         val context = MangaLoaderContextImpl()
@@ -107,6 +111,7 @@ class Main : AppCommand(name = "kotatsu-dl") {
             chaptersRange = range,
             format = format,
             throttle = throttle,
+            verbose = verbose,
         )
         val file = downloader.download()
         colored {

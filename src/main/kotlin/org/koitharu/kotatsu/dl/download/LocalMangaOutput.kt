@@ -39,7 +39,7 @@ sealed class LocalMangaOutput(
             } else {
                 DownloadFormat.DIR
             }
-            var file = if (target.isDirectory || (!target.exists() && format == DownloadFormat.DIR)) {
+            var file = if (target.isDirectory || (!target.exists() && targetFormat == DownloadFormat.DIR)) {
                 if (!target.exists()) {
                     target.mkdirs()
                 }

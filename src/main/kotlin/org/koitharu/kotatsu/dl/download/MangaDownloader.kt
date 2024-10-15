@@ -34,6 +34,7 @@ class MangaDownloader(
     private val chaptersRange: ChaptersRange,
     private val format: DownloadFormat?,
     private val throttle: Boolean,
+    private val verbose: Boolean,
 ) {
 
     private val progressBarStyle = ProgressBarStyle.builder()
@@ -44,13 +45,19 @@ class MangaDownloader(
         .build()
 
     suspend fun download(): File {
+        val output = LocalMangaOutput.create(destination ?: File("").absoluteFile, manga, format)
+        if (verbose) {
+            colored {
+                print("Output: ".cyan)
+                println(output.rootFile.canonicalPath)
+            }
+        }
         val progressBar = ProgressBarBuilder()
             .setStyle(progressBarStyle)
             .setTaskName("Downloading")
             .clearDisplayOnFinish()
             .build()
         progressBar.setExtraMessage("Preparing...")
-        val output = LocalMangaOutput.create(destination ?: File(""), manga, format)
         val tempDir = Files.createTempDirectory("kdl_").toFile()
         val counters = MutableIntList()
         val totalChapters = chaptersRange.size(chapters)
@@ -96,6 +103,12 @@ class MangaDownloader(
             return output.rootFile.canonicalFile
         } catch (e: Throwable) {
             progressBar.close()
+            if (e is CancellationException) {
+                colored {
+                    println()
+                    println("Interrupted by user".red)
+                }
+            }
             throw e
         } finally {
             withContext(NonCancellable) {
