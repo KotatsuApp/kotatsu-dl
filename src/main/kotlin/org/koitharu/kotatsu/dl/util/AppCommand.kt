@@ -2,10 +2,10 @@ package org.koitharu.kotatsu.dl.util
 
 import com.github.ajalt.clikt.command.CoreSuspendingCliktCommand
 import com.github.ajalt.clikt.core.FileNotFound
+import com.github.ajalt.clikt.core.PrintMessage
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.context
 import okio.IOException
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 
@@ -36,11 +36,13 @@ abstract class AppCommand(name: String) : CoreSuspendingCliktCommand(name) {
     }
 
     final override suspend fun run() {
-        val exitCode = runCatchingCancellable {
+        val exitCode = try {
             invoke()
-        }.onFailure { e ->
-            e.printStackTrace()
-        }.getOrDefault(1)
+        } catch (e: IllegalStateException) {
+            throw PrintMessage(e.message.ifNullOrEmpty { GENERIC_ERROR_MSG }, 2, true)
+        } catch (e: NotImplementedError) {
+            throw PrintMessage(e.message.ifNullOrEmpty { GENERIC_ERROR_MSG }, 2, true)
+        }
         throw ProgramResult(exitCode)
     }
 

@@ -44,7 +44,7 @@ class Main : AppCommand(name = "kotatsu-dl") {
     private val parallelism: Int by option(
         names = arrayOf("-j", "--jobs"),
         help = "Number of parallel jobs for downloading",
-    ).int().default(1).check("Jobs count should be between 1 and 10") {
+    ).int().default(4).check("Jobs count should be between 1 and 10") {
         it in 1..10
     }
     private val throttle: Boolean by option(

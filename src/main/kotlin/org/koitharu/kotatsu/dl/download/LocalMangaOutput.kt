@@ -1,8 +1,10 @@
 package org.koitharu.kotatsu.dl.download
 
+import com.github.ajalt.clikt.core.UsageError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import okio.Closeable
+import org.koitharu.kotatsu.dl.util.getNextAvailable
 import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.model.MangaChapter
 import org.koitharu.kotatsu.parsers.util.toFileNameSafe
@@ -30,53 +32,72 @@ sealed class LocalMangaOutput(
         const val SUFFIX_TMP = ".tmp"
 
         suspend fun create(
-            target: File,
+            destination: File,
             manga: Manga,
-            format: DownloadFormat?,
+            preferredFormat: DownloadFormat?,
         ): LocalMangaOutput = runInterruptible(Dispatchers.IO) {
-            val targetFormat = format ?: if (manga.chapters.let { it != null && it.size <= 3 }) {
+            when {
+                // option 0 - destination is a existing file/dir and we should write manga into id directly
+                destination.exists() && (destination.isFile || destination.isMangaDir()) -> {
+                    TODO("Downloading into existing manga destination is not supported yet")
+                }
+                // option 1 - destination is an existing directory and we should create a nested dir/file for manga
+                destination.exists() && destination.isDirectory -> {
+                    val baseName = manga.title.toFileNameSafe()
+                    val format = preferredFormat ?: detectFormat(manga)
+                    val targetFile = File(
+                        destination, when (format) {
+                            DownloadFormat.CBZ -> "$baseName.cbz"
+                            DownloadFormat.ZIP -> "$baseName.zip"
+                            DownloadFormat.DIR -> baseName
+                        }
+                    )
+                    createDirectly(targetFile.getNextAvailable(), manga, format)
+                }
+                // option 2 - destination is a non-existing file/dir and we should write manga into id directly
+                !destination.exists() -> {
+                    val parentDir: File? = destination.parentFile
+                    parentDir?.mkdirs()
+                    createDirectly(destination, manga, preferredFormat ?: detectFormat(destination))
+                }
+
+                else -> throw UsageError(
+                    message = "Unable to determine destination file or directory. Please specify it explicitly",
+                    paramName = "--destination"
+                )
+            }
+        }
+
+        private fun createDirectly(destination: File, manga: Manga, format: DownloadFormat) = when (format) {
+            DownloadFormat.CBZ,
+            DownloadFormat.ZIP,
+                -> LocalMangaZipOutput(destination, manga)
+
+            DownloadFormat.DIR -> LocalMangaDirOutput(destination, manga)
+        }
+
+        private fun detectFormat(destination: File): DownloadFormat {
+            return when (destination.extension.lowercase()) {
+                "cbz" -> return DownloadFormat.CBZ
+                "zip" -> return DownloadFormat.ZIP
+                "" -> return DownloadFormat.DIR
+                else -> throw UsageError(
+                    message = "Unable to determine output format. Please specify it explicitly",
+                    paramName = "--format"
+                )
+            }
+        }
+
+        private fun detectFormat(manga: Manga): DownloadFormat {
+            return if (manga.chapters.let { it != null && it.size <= 5 }) {
                 DownloadFormat.CBZ
             } else {
                 DownloadFormat.DIR
             }
-            var file = if (target.isDirectory || (!target.exists() && targetFormat == DownloadFormat.DIR)) {
-                if (!target.exists()) {
-                    target.mkdirs()
-                }
-                val baseName = manga.title.toFileNameSafe()
-                when (targetFormat) {
-                    DownloadFormat.CBZ -> File(target, "$baseName.cbz")
-                    DownloadFormat.ZIP -> File(target, "$baseName.zip")
-                    DownloadFormat.DIR -> File(target, baseName)
-                }
-            } else {
-                target.parentFile?.run {
-                    if (!exists()) mkdirs()
-                }
-                target
-            }
-            getNextAvailable(file, manga)
         }
 
-        private fun getNextAvailable(
-            file: File,
-            manga: Manga,
-        ): LocalMangaOutput {
-            var i = 0
-            val baseName = file.nameWithoutExtension
-            val ext = file.extension.let { if (it.isNotEmpty()) ".$it" else "" }
-            while (true) {
-                val fileName = (if (i == 0) baseName else baseName + "_$i") + ext
-                val target = File(file.parentFile, fileName)
-                if (target.exists()) {
-                    i++
-                } else {
-                    return when {
-                        target.isDirectory -> LocalMangaDirOutput(target, manga)
-                        else -> LocalMangaZipOutput(target, manga)
-                    }
-                }
-            }
+        private fun File.isMangaDir(): Boolean {
+            return list()?.contains("index.json") == true
         }
     }
 }

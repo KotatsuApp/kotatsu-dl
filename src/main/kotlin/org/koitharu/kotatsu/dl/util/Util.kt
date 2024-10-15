@@ -5,7 +5,10 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Response
 import okhttp3.internal.closeQuietly
 import org.jsoup.HttpStatusException
+import java.io.File
 import java.net.HttpURLConnection
+
+const val GENERIC_ERROR_MSG = "An error has occured"
 
 @Suppress("NOTHING_TO_INLINE")
 inline operator fun <T> List<T>.component6(): T = get(5)
@@ -32,4 +35,19 @@ fun IntList.sum(): Int {
     var result = 0
     forEach { value -> result += value }
     return result
+}
+
+fun File.getNextAvailable(): File {
+    var i = 0
+    val baseName = nameWithoutExtension
+    val ext = extension.let { if (it.isNotEmpty()) ".$it" else "" }
+    while (true) {
+        val fileName = (if (i == 0) baseName else baseName + "_$i") + ext
+        val target = File(this.parentFile, fileName)
+        if (target.exists()) {
+            i++
+        } else {
+            return target
+        }
+    }
 }
