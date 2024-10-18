@@ -1,7 +1,6 @@
 package org.koitharu.kotatsu.dl
 
 import com.github.ajalt.clikt.command.main
-import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.enum
@@ -68,10 +67,10 @@ class Main : AppCommand(name = "kotatsu-dl") {
         val linkResolver = context.newLinkResolver(link)
         print("Resolving link…")
         val source = linkResolver.getSource()
+        val manga = linkResolver.getManga()
         if (source == null) {
             println()
-            System.err.println("Unsupported manga source")
-            return 1
+            error("Unsupported manga source")
         }
         println('\r')
         colored {
@@ -79,10 +78,8 @@ class Main : AppCommand(name = "kotatsu-dl") {
             print(source.title.bold)
             println()
         }
-        val manga = linkResolver.getManga()
         if (manga == null) {
-            System.err.println("Manga not found")
-            return 1
+            error("Manga not found")
         }
         colored {
             print("Title: ".cyan)
@@ -90,8 +87,7 @@ class Main : AppCommand(name = "kotatsu-dl") {
         }
         var chapters = manga.chapters
         if (chapters.isNullOrEmpty()) {
-            System.err.println("Manga contains no chapters")
-            throw ProgramResult(1)
+            error("Manga contains no chapters")
         }
         chapters = askSelectBranch(chapters)
         colored {

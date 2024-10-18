@@ -39,7 +39,7 @@ abstract class AppCommand(name: String) : CoreSuspendingCliktCommand(name) {
         val exitCode = try {
             invoke()
         } catch (e: IllegalStateException) {
-            throw PrintMessage(e.message.ifNullOrEmpty { GENERIC_ERROR_MSG }, 2, true)
+            throw PrintMessage(e.message.ifNullOrEmpty { GENERIC_ERROR_MSG }, 1, true)
         } catch (e: NotImplementedError) {
             throw PrintMessage(e.message.ifNullOrEmpty { GENERIC_ERROR_MSG }, 2, true)
         }
