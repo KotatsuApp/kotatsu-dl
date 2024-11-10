@@ -15,6 +15,7 @@ import org.koitharu.kotatsu.dl.ui.askSelectBranch
 import org.koitharu.kotatsu.dl.util.AppCommand
 import org.koitharu.kotatsu.dl.util.ChaptersRange
 import org.koitharu.kotatsu.dl.util.colored
+import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import java.io.File
 
 class Main : AppCommand(name = "kotatsu-dl") {
@@ -68,7 +69,7 @@ class Main : AppCommand(name = "kotatsu-dl") {
         print("Resolving link…")
         val source = linkResolver.getSource()
         val manga = linkResolver.getManga()
-        if (source == null) {
+        if (source == null || source == MangaParserSource.DUMMY) {
             println()
             error("Unsupported manga source")
         }
@@ -101,7 +102,7 @@ class Main : AppCommand(name = "kotatsu-dl") {
                 print("==>".green)
                 print(' ')
             }
-            ChaptersRange.parse(readLine())
+            ChaptersRange.parse(readlnOrNull())
         } else {
             ChaptersRange.all()
         }

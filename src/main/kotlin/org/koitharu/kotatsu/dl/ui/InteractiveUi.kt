@@ -24,7 +24,7 @@ fun askSelectBranch(chapters: List<MangaChapter>): List<MangaChapter> {
             print("==>".green)
             print(' ')
         }
-        val userInput = readLine()?.trim().ifNullOrEmpty { "1" }
+        val userInput = readlnOrNull()?.trim().ifNullOrEmpty { "1" }
         val branch = branches[userInput.toInt() - 1].first
         return chapters.filter { chapter -> chapter.branch == branch }
     } else {
