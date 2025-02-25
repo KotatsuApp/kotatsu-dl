@@ -64,7 +64,7 @@ class MangaDownloader(
         val totalChapters = chaptersRange.size(chapters)
         try {
             val parser = context.newParserInstance(manga.source as MangaParserSource)
-            val coverUrl = manga.largeCoverUrl.ifNullOrEmpty { manga.coverUrl }
+            val coverUrl = manga.largeCoverUrl.ifNullOrEmpty { manga.coverUrl.orEmpty() }
             if (coverUrl.isNotEmpty()) {
                 downloadFile(coverUrl, tempDir, parser.source).let { file ->
                     output.addCover(file, getFileExtensionFromUrl(coverUrl).orEmpty())

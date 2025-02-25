@@ -5,9 +5,9 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.internal.closeQuietly
+import org.koitharu.kotatsu.dl.util.toFileNameSafe
 import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.util.toFileNameSafe
 import java.io.File
 
 class LocalMangaDirOutput(

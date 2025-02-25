@@ -5,9 +5,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import okio.Closeable
 import org.koitharu.kotatsu.dl.util.getNextAvailable
+import org.koitharu.kotatsu.dl.util.toFileNameSafe
 import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.model.MangaChapter
-import org.koitharu.kotatsu.parsers.util.toFileNameSafe
 import java.io.File
 
 sealed class LocalMangaOutput(

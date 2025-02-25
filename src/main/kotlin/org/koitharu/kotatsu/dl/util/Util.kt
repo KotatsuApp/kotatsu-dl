@@ -1,6 +1,7 @@
 package org.koitharu.kotatsu.dl.util
 
 import androidx.collection.IntList
+import androidx.collection.arraySetOf
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Response
 import okhttp3.internal.closeQuietly
@@ -51,3 +52,32 @@ fun File.getNextAvailable(): File {
         }
     }
 }
+
+fun String.transliterate(skipMissing: Boolean): String {
+    val cyr = charArrayOf(
+        'а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п',
+        'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я', 'ё', 'ў',
+    )
+    val lat = arrayOf(
+        "a", "b", "v", "g", "d", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p",
+        "r", "s", "t", "u", "f", "h", "ts", "ch", "sh", "sch", "", "i", "", "e", "ju", "ja", "jo", "w",
+    )
+    return buildString(length + 5) {
+        for (c in this@transliterate) {
+            val p = cyr.binarySearch(c.lowercaseChar())
+            if (p in lat.indices) {
+                if (c.isUpperCase()) {
+                    append(lat[p].uppercase())
+                } else {
+                    append(lat[p])
+                }
+            } else if (!skipMissing) {
+                append(c)
+            }
+        }
+    }
+}
+
+fun String.toFileNameSafe(): String = this.transliterate(false)
+    .replace(Regex("[^a-z0-9_\\-]", arraySetOf(RegexOption.IGNORE_CASE)), " ")
+    .replace(Regex("\\s+"), "_")
