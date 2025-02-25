@@ -9,7 +9,7 @@ import org.jsoup.HttpStatusException
 import java.io.File
 import java.net.HttpURLConnection
 
-const val GENERIC_ERROR_MSG = "An error has occured"
+const val GENERIC_ERROR_MSG = "An error has occurred"
 
 @Suppress("NOTHING_TO_INLINE")
 inline operator fun <T> List<T>.component6(): T = get(5)
