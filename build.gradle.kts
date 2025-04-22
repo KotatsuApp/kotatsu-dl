@@ -29,15 +29,15 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.9.0")
-    implementation("com.github.ajalt.clikt:clikt-core:5.0.1")
-    implementation("com.github.KotatsuApp:kotatsu-parsers:8f9c0d93f6")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
+    implementation("com.github.ajalt.clikt:clikt-core:5.0.3")
+    implementation("com.github.KotatsuApp:kotatsu-parsers:16b8bf9328")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okio:okio:3.9.0")
+    implementation("com.squareup.okio:okio:3.11.0")
     implementation("io.webfolder:quickjs:1.1.0")
     implementation("org.json:json:20240303")
     implementation("me.tongfei:progressbar:0.10.1")
-    implementation("androidx.collection:collection:1.4.4")
+    implementation("androidx.collection:collection:1.5.0")
 }
 
 tasks.test {
