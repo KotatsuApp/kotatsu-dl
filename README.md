@@ -35,6 +35,7 @@ Options:
   --throttle                     Slow down downloading to avoid blocking your IP address by server
   --chapters=<numbers or range>  Numbers of chapters to download. Can be a single numbers or range, e.g. "1-4,8,11" or "all"
   -v, --verbose                  Show more information
+  --sources                      Show list of supported manga sources and exit
   -h, --help                     Show this message and exit
 
 Arguments:

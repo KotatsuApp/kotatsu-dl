@@ -1,6 +1,7 @@
 package org.koitharu.kotatsu.dl
 
 import com.github.ajalt.clikt.command.main
+import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.enum
@@ -12,6 +13,7 @@ import org.koitharu.kotatsu.dl.download.DownloadFormat
 import org.koitharu.kotatsu.dl.download.MangaDownloader
 import org.koitharu.kotatsu.dl.parsers.MangaLoaderContextImpl
 import org.koitharu.kotatsu.dl.ui.askSelectBranch
+import org.koitharu.kotatsu.dl.ui.printSourcesList
 import org.koitharu.kotatsu.dl.util.AppCommand
 import org.koitharu.kotatsu.dl.util.ChaptersRange
 import org.koitharu.kotatsu.dl.util.colored
@@ -62,6 +64,16 @@ class Main : AppCommand(name = "kotatsu-dl") {
         names = arrayOf("-v", "--verbose"),
         help = "Show more information"
     ).flag(default = false)
+
+    init {
+        eagerOption(
+            names = arrayOf("--sources"),
+            help = "Show list of supported manga sources and exit"
+        ) {
+            MangaLoaderContextImpl().printSourcesList()
+            throw ProgramResult(0)
+        }
+    }
 
     override suspend fun invoke(): Int {
         val context = MangaLoaderContextImpl()
