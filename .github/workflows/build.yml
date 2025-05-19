@@ -1,7 +1,16 @@
-name: Build JAR
+name: Build JAR with Dynamic Parser Version
 
 on:
   workflow_dispatch:
+    inputs:
+      parser_repo:
+        description: 'Repository for kotatsu-parsers (e.g., KotatsuApp/kotatsu-parsers)'
+        required: true
+        default: 'KotatsuApp/kotatsu-parsers'
+      parser_branch:
+        description: 'Branch for kotatsu-parsers (e.g., master or main)'
+        required: true
+        default: 'master' # Hoặc 'main' tùy theo repository
 
 jobs:
   build:
@@ -15,6 +24,67 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Get latest commit hash from parser repository
+        id: get_hash
+        run: |
+          echo "Fetching latest commit from ${{ github.event.inputs.parser_repo }} on branch ${{ github.event.inputs.parser_branch }}"
+          LATEST_HASH=$(curl -s -L \
+            -H "Accept: application/vnd.github.v3.sha" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.event.inputs.parser_repo }}/commits/${{ github.event.inputs.parser_branch }}")
+          
+          if [ -z "$LATEST_HASH" ] || [ "$LATEST_HASH" == "Not Found" ] || [[ "$LATEST_HASH" == *"API rate limit exceeded"* ]]; then
+            echo "Error fetching commit hash: $LATEST_HASH"
+            # Lấy hash hiện tại từ build.gradle.kts làm fallback
+            # Regex này tìm dòng implementation("com.github.KotatsuApp:kotatsu-parsers:HASH")
+            # và trích xuất HASH.
+            CURRENT_PARSER_VERSION=$(grep -oP 'implementation\("com.github.KotatsuApp:kotatsu-parsers:[^"]+"\)' build.gradle.kts | grep -oP ':[^"]+"$' | sed 's/://"g')
+            if [ -z "$CURRENT_PARSER_VERSION" ]; then
+                echo "Could not find current parser version in build.gradle.kts. Exiting."
+                exit 1
+            else
+                echo "Using existing parser version as fallback: $CURRENT_PARSER_VERSION"
+                SHORT_HASH=$(echo "$CURRENT_PARSER_VERSION" | cut -c1-10)
+            fi
+          else
+            echo "Full hash: $LATEST_HASH"
+            SHORT_HASH=$(echo "$LATEST_HASH" | cut -c1-10)
+          fi
+          
+          echo "Short hash: $SHORT_HASH"
+          echo "::set-output name=short_hash::$SHORT_HASH"
+        env:
+          # GITHUB_TOKEN được cung cấp tự động bởi Actions
+          # không cần tạo secret riêng trừ khi bạn truy cập repo private khác
+          # mà runner không có quyền mặc định.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update kotatsu-parsers version in build.gradle.kts
+        run: |
+          SHORT_HASH="${{ steps.get_hash.outputs.short_hash }}"
+          if [ -z "$SHORT_HASH" ]; then
+            echo "Short hash is empty. Skipping update."
+            exit 1
+          fi
+          echo "Using hash: $SHORT_HASH to update build.gradle.kts"
+          # Regex này sẽ tìm và thay thế hash trong dòng:
+          # implementation("com.github.KotatsuApp:kotatsu-parsers:ANY_HASH_OR_VERSION_HERE")
+          # bằng SHORT_HASH mới.
+          # Điều này an toàn hơn là giả định một hash cũ cụ thể.
+          sed -i -E 's/(implementation\("com.github.KotatsuApp:kotatsu-parsers:)[^"]+("\))/\1'"$SHORT_HASH"'\2/' build.gradle.kts
+          echo "build.gradle.kts after update:"
+          cat build.gradle.kts
+      
+      - name: Verify build.gradle.kts modification
+        run: |
+          echo "Verifying changes in build.gradle.kts"
+          git diff build.gradle.kts || echo "No changes to build.gradle.kts, or diff failed (this is unexpected if sed ran successfully)"
+          grep "com.github.KotatsuApp:kotatsu-parsers:${{ steps.get_hash.outputs.short_hash }}" build.gradle.kts
+          if [ $? -ne 0 ]; then
+            echo "Failed to update build.gradle.kts with the new hash!"
+            exit 1
+          fi
 
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
