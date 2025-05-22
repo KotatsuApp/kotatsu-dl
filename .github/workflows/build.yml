@@ -1,0 +1,153 @@
+# Workflow name
+name: Build JAR
+
+# Triggers for the workflow
+on:
+  # Allows manual triggering of the workflow from the GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      # Input field for the full repository path of the new parser
+      # e.g., "NewOwner/NewParserRepo"
+      parser_repo_full:
+        description: 'Full repository for the new parser (e.g., NewOwner/NewParserRepo)'
+        required: true
+        default: 'KotatsuApp/kotatsu-parsers' # Default to the original repo, perhaps to update to its latest commit
+      # Input field for the branch of the new parser repository
+      parser_branch:
+        description: 'Branch for the new parser (e.g., master or main)'
+        required: true
+        default: 'master' # Default branch, can be 'main' or other depending on the target repo
+
+# Defines the jobs to be run in the workflow
+jobs:
+  build:
+    # Specifies the runner environment for the job
+    runs-on: ubuntu-latest
+    # Defines the sequence of steps for the 'build' job
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4 # Uses the v4 of the checkout action
+
+      # Step 2: Set up JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3 # Uses the v3 of the setup-java action
+        with:
+          java-version: '17' # Specifies Java version 17
+          distribution: 'temurin' # Specifies the Temurin distribution of JDK
+
+      # Step 3: Get the latest commit hash and repository details for the new parser
+      - name: Get new parser commit hash and repo details
+        id: get_new_parser_info # Sets an ID for this step to reference its outputs later
+        run: |
+          # Get inputs from the workflow dispatch event
+          NEW_PARSER_REPO_FULL="${{ github.event.inputs.parser_repo_full }}"
+          PARSER_BRANCH="${{ github.event.inputs.parser_branch }}"
+
+          echo "Fetching latest commit from $NEW_PARSER_REPO_FULL on branch $PARSER_BRANCH"
+          # Fetch the latest commit SHA from the specified GitHub repository and branch
+          # -s for silent, -L to follow redirects
+          # Accept header requests only the SHA (plain text)
+          # Authorization uses the automatically provided GITHUB_TOKEN for API rate limits and private repo access
+          LATEST_HASH=$(curl -s -L \
+            -H "Accept: application/vnd.github.v3.sha" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$NEW_PARSER_REPO_FULL/commits/$PARSER_BRANCH")
+          
+          # Check if fetching the hash failed (empty, "Not Found", API errors, etc.)
+          if [ -z "$LATEST_HASH" ] || [ "$LATEST_HASH" == "Not Found" ] || [[ "$LATEST_HASH" == *"API rate limit exceeded"* ]] || [[ "$LATEST_HASH" == *"Problems parsing JSON"* ]]; then
+            echo "Error fetching commit hash for $NEW_PARSER_REPO_FULL: $LATEST_HASH"
+            echo "Please ensure the repository and branch are correct and accessible."
+            # Fallback to a hardcoded original version if fetching fails.
+            # This prevents the build from failing immediately due to transient API issues.
+            # You might want to adjust this fallback (e.g., fail the build, use a different default).
+            LATEST_HASH="16b8bf9328" # Original hash of KotatsuApp:kotatsu-parsers as a fallback
+            NEW_PARSER_REPO_FULL="KotatsuApp/kotatsu-parsers" # Original repo as a fallback
+            echo "Using fallback version: $LATEST_HASH for $NEW_PARSER_REPO_FULL"
+          fi
+          
+          # Extract the owner and repository name from the full repository path (Owner/RepoName)
+          NEW_PARSER_OWNER=$(echo "$NEW_PARSER_REPO_FULL" | cut -d'/' -f1)
+          NEW_PARSER_REPO_NAME=$(echo "$NEW_PARSER_REPO_FULL" | cut -d'/' -f2)
+          # Get the first 10 characters of the hash
+          SHORT_HASH=$(echo "$LATEST_HASH" | cut -c1-10)
+          
+          echo "New Parser Owner: $NEW_PARSER_OWNER"
+          echo "New Parser Repo Name: $NEW_PARSER_REPO_NAME"
+          echo "New Short hash: $SHORT_HASH"
+
+          # Set outputs for this step to be used by subsequent steps
+          echo "::set-output name=new_parser_owner::$NEW_PARSER_OWNER"
+          echo "::set-output name=new_parser_repo_name::$NEW_PARSER_REPO_NAME"
+          echo "::set-output name=new_short_hash::$SHORT_HASH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Provide the GitHub token to the script environment
+
+      # Step 4: Update the specific parser dependency line in build.gradle.kts
+      - name: Update specific parser version in build.gradle.kts
+        run: |
+          # Retrieve the outputs from the previous step
+          NEW_OWNER="${{ steps.get_new_parser_info.outputs.new_parser_owner }}"
+          NEW_REPO_NAME="${{ steps.get_new_parser_info.outputs.new_parser_repo_name }}"
+          NEW_HASH="${{ steps.get_new_parser_info.outputs.new_short_hash }}"
+
+          # Check if any of the required information is empty
+          if [ -z "$NEW_OWNER" ] || [ -z "$NEW_REPO_NAME" ] || [ -z "$NEW_HASH" ]; then
+            echo "New parser owner, repo name, or short hash is empty. Skipping update."
+            # Optionally, exit with an error if update is mandatory:
+            # exit 1 
+            echo "Build will continue with the existing parser version in build.gradle.kts."
+          else
+            # Define the owner and repository name of the *original* dependency line to be replaced
+            # Ensure these match the dependency you intend to update in your build.gradle.kts
+            ORIGINAL_PARSER_OWNER="KotatsuApp"
+            ORIGINAL_PARSER_REPO_NAME="kotatsu-parsers"
+
+            echo "Attempting to replace: com.github.$ORIGINAL_PARSER_OWNER:$ORIGINAL_PARSER_REPO_NAME"
+            echo "With: com.github.$NEW_OWNER:$NEW_REPO_NAME:$NEW_HASH"
+            
+            # Use sed to find and replace the specific dependency line.
+            # This command targets the line for "com.github.KotatsuApp:kotatsu-parsers:ANY_VERSION"
+            # and replaces its owner, repo name, and version with the new dynamic values.
+            # -i for in-place edit, -E for extended regex.
+            # The pattern specifically matches the ORIGINAL_PARSER_OWNER and ORIGINAL_PARSER_REPO_NAME.
+            # `[^"]+` matches the old version string (any characters except a quote).
+            # `\1` and `\2` are backreferences to the captured groups in the pattern.
+            sed -i -E 's,(implementation\("com\.github\.)'$ORIGINAL_PARSER_OWNER':'$ORIGINAL_PARSER_REPO_NAME':[^"]+("\)),\1'"$NEW_OWNER"':'"$NEW_REPO_NAME"':'"$NEW_HASH"'\2,' build.gradle.kts
+            
+            echo "build.gradle.kts after potential update:"
+            cat build.gradle.kts # Print the file content for verification
+          fi
+      
+      # Step 5: Verify build.gradle.kts to ensure critical dependencies are intact
+      - name: Verify build.gradle.kts
+        run: |
+          echo "Verifying updated parser dependency (if update occurred):"
+          # If the new parser info was successfully fetched and an update was attempted,
+          # check if the new parser line exists in the build file.
+          if [ -n "${{ steps.get_new_parser_info.outputs.new_short_hash }}" ] && \
+             [ -n "${{ steps.get_new_parser_info.outputs.new_parser_owner }}" ] && \
+             [ -n "${{ steps.get_new_parser_info.outputs.new_parser_repo_name }}" ]; then
+            EXPECTED_PARSER_LINE="implementation(\"com.github.${{ steps.get_new_parser_info.outputs.new_parser_owner }}:${{ steps.get_new_parser_info.outputs.new_parser_repo_name }}:${{ steps.get_new_parser_info.outputs.new_short_hash }}\")"
+            echo "Expected new parser line: $EXPECTED_PARSER_LINE"
+            # Use grep -F for fixed string search.
+            # This check might show a false negative if the update was skipped (e.g. due to empty NEW_OWNER)
+            # The `|| echo ...` part prevents the script from exiting if grep doesn't find the line,
+            # which might be okay if the update was intentionally skipped.
+            grep -F "$EXPECTED_PARSER_LINE" build.gradle.kts || echo "Parser line might not have been updated as expected (e.g., if fallback was used or skip logic triggered)."
+          fi
+
+      # Step 6: Set up Gradle
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2 # Uses the official Gradle action
+
+      # Step 7: Build the project with Gradle, running the shadowJar task
+      - name: Build with Gradle
+        run: ./gradlew shadowJar # Executes the shadowJar task to create the fat JAR
+
+      # Step 8: Upload the built JAR as an artifact
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4 # Uses v4 of the upload-artifact action
+        with:
+          name: kotatsu-dl # Name of the artifact to be uploaded
+          path: build/libs/kotatsu-dl.jar # Path to the JAR file to upload
