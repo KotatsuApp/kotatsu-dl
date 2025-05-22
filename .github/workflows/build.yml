@@ -3,8 +3,8 @@ name: Build JAR with Dynamic Parser Version
 on:
   workflow_dispatch:
     inputs:
-      parser_repo:
-        description: 'Repository for kotatsu-parsers (e.g., KotatsuApp/kotatsu-parsers)'
+      parser_repo_full:
+        description: 'Full repository for kotatsu-parsers (e.g., KotatsuApp/kotatsu-parsers)'
         required: true
         default: 'KotatsuApp/kotatsu-parsers'
       parser_branch:
@@ -25,66 +25,103 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Get latest commit hash from parser repository
-        id: get_hash
+      - name: Get latest commit hash and repo details
+        id: get_parser_info
         run: |
-          echo "Fetching latest commit from ${{ github.event.inputs.parser_repo }} on branch ${{ github.event.inputs.parser_branch }}"
+          PARSER_REPO_FULL="${{ github.event.inputs.parser_repo_full }}"
+          PARSER_BRANCH="${{ github.event.inputs.parser_branch }}"
+
+          echo "Fetching latest commit from $PARSER_REPO_FULL on branch $PARSER_BRANCH"
           LATEST_HASH=$(curl -s -L \
             -H "Accept: application/vnd.github.v3.sha" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.event.inputs.parser_repo }}/commits/${{ github.event.inputs.parser_branch }}")
+            "https://api.github.com/repos/$PARSER_REPO_FULL/commits/$PARSER_BRANCH")
           
-          if [ -z "$LATEST_HASH" ] || [ "$LATEST_HASH" == "Not Found" ] || [[ "$LATEST_HASH" == *"API rate limit exceeded"* ]]; then
+          PARSER_OWNER=$(echo "$PARSER_REPO_FULL" | cut -d'/' -f1)
+          PARSER_REPO_NAME=$(echo "$PARSER_REPO_FULL" | cut -d'/' -f2)
+
+          if [ -z "$LATEST_HASH" ] || [ "$LATEST_HASH" == "Not Found" ] || [[ "$LATEST_HASH" == *"API rate limit exceeded"* ]] || [[ "$LATEST_HASH" == *"Problems parsing JSON"* ]]; then
             echo "Error fetching commit hash: $LATEST_HASH"
-            # Lấy hash hiện tại từ build.gradle.kts làm fallback
-            # Regex này tìm dòng implementation("com.github.KotatsuApp:kotatsu-parsers:HASH")
-            # và trích xuất HASH.
-            CURRENT_PARSER_VERSION=$(grep -oP 'implementation\("com.github.KotatsuApp:kotatsu-parsers:[^"]+"\)' build.gradle.kts | grep -oP ':[^"]+"$' | sed 's/://"g')
-            if [ -z "$CURRENT_PARSER_VERSION" ]; then
-                echo "Could not find current parser version in build.gradle.kts. Exiting."
+            # Lấy thông tin hiện tại từ build.gradle.kts làm fallback
+            # Regex này tìm dòng implementation("com.github.ANY_OWNER:ANY_REPO:HASH")
+            # và trích xuất ANY_OWNER, ANY_REPO, và HASH.
+            CURRENT_PARSER_LINE=$(grep -oP 'implementation\("com.github\.[^:]+:[^:]+:[^"]+"\)' build.gradle.kts | head -n 1)
+            if [ -z "$CURRENT_PARSER_LINE" ]; then
+                echo "Could not find current parser implementation line in build.gradle.kts. Exiting."
                 exit 1
-            else
-                echo "Using existing parser version as fallback: $CURRENT_PARSER_VERSION"
+            fi
+            echo "Current parser line: $CURRENT_PARSER_LINE"
+            
+            # Trích xuất owner, repo name, và version từ dòng hiện tại
+            # Ví dụ: implementation("com.github.KotatsuApp:kotatsu-parsers:16b8bf9328")
+            # Group 1: KotatsuApp, Group 2: kotatsu-parsers, Group 3: 16b8bf9328
+            if [[ "$CURRENT_PARSER_LINE" =~ implementation\(\"com\.github\.([^\:]+)\:([^\:]+)\:([^\"]+)\"\) ]]; then
+                PARSER_OWNER="${BASH_REMATCH[1]}"
+                PARSER_REPO_NAME="${BASH_REMATCH[2]}"
+                CURRENT_PARSER_VERSION="${BASH_REMATCH[3]}"
+                echo "Using existing parser owner '$PARSER_OWNER', repo '$PARSER_REPO_NAME', version '$CURRENT_PARSER_VERSION' as fallback."
                 SHORT_HASH=$(echo "$CURRENT_PARSER_VERSION" | cut -c1-10)
+            else
+                echo "Could not parse current parser details from build.gradle.kts. Exiting."
+                exit 1
             fi
           else
             echo "Full hash: $LATEST_HASH"
             SHORT_HASH=$(echo "$LATEST_HASH" | cut -c1-10)
           fi
           
+          echo "Parser Owner: $PARSER_OWNER"
+          echo "Parser Repo Name: $PARSER_REPO_NAME"
           echo "Short hash: $SHORT_HASH"
+
+          echo "::set-output name=parser_owner::$PARSER_OWNER"
+          echo "::set-output name=parser_repo_name::$PARSER_REPO_NAME"
           echo "::set-output name=short_hash::$SHORT_HASH"
         env:
-          # GITHUB_TOKEN được cung cấp tự động bởi Actions
-          # không cần tạo secret riêng trừ khi bạn truy cập repo private khác
-          # mà runner không có quyền mặc định.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update kotatsu-parsers version in build.gradle.kts
         run: |
-          SHORT_HASH="${{ steps.get_hash.outputs.short_hash }}"
-          if [ -z "$SHORT_HASH" ]; then
-            echo "Short hash is empty. Skipping update."
+          PARSER_OWNER="${{ steps.get_parser_info.outputs.parser_owner }}"
+          PARSER_REPO_NAME="${{ steps.get_parser_info.outputs.parser_repo_name }}"
+          SHORT_HASH="${{ steps.get_parser_info.outputs.short_hash }}"
+
+          if [ -z "$PARSER_OWNER" ] || [ -z "$PARSER_REPO_NAME" ] || [ -z "$SHORT_HASH" ]; then
+            echo "Parser owner, repo name, or short hash is empty. Skipping update."
             exit 1
           fi
-          echo "Using hash: $SHORT_HASH to update build.gradle.kts"
-          # Regex này sẽ tìm và thay thế hash trong dòng:
-          # implementation("com.github.KotatsuApp:kotatsu-parsers:ANY_HASH_OR_VERSION_HERE")
-          # bằng SHORT_HASH mới.
-          # Điều này an toàn hơn là giả định một hash cũ cụ thể.
-          sed -i -E 's/(implementation\("com.github.KotatsuApp:kotatsu-parsers:)[^"]+("\))/\1'"$SHORT_HASH"'\2/' build.gradle.kts
+
+          echo "Updating build.gradle.kts with Owner: $PARSER_OWNER, Repo: $PARSER_REPO_NAME, Hash: $SHORT_HASH"
+          
+          # Regex này sẽ tìm và thay thế dòng:
+          # implementation("com.github.ANY_OWNER:ANY_REPO_NAME:ANY_HASH_OR_VERSION_HERE")
+          # bằng các giá trị mới.
+          # Lưu ý: Điều này giả định rằng chỉ có MỘT dòng như vậy cho kotatsu-parsers.
+          # Nếu có nhiều, bạn có thể cần làm cho regex cụ thể hơn.
+          # Dấu \. trong com\.github\. là để khớp với dấu chấm thật sự.
+          # [^:]+ khớp với bất kỳ ký tự nào không phải là dấu hai chấm (cho owner và repo name).
+          # [^"]+ khớp với bất kỳ ký tự nào không phải là dấu ngoặc kép (cho hash/phiên bản).
+          sed -i -E 's,(implementation\("com\.github\.)[^:]+:[^:]+:[^"]+("\)),\1'"$PARSER_OWNER"':'"$PARSER_REPO_NAME"':'"$SHORT_HASH"'\2,' build.gradle.kts
+          
           echo "build.gradle.kts after update:"
           cat build.gradle.kts
       
       - name: Verify build.gradle.kts modification
         run: |
           echo "Verifying changes in build.gradle.kts"
-          git diff build.gradle.kts || echo "No changes to build.gradle.kts, or diff failed (this is unexpected if sed ran successfully)"
-          grep "com.github.KotatsuApp:kotatsu-parsers:${{ steps.get_hash.outputs.short_hash }}" build.gradle.kts
+          EXPECTED_LINE="implementation(\"com.github.${{ steps.get_parser_info.outputs.parser_owner }}:${{ steps.get_parser_info.outputs.parser_repo_name }}:${{ steps.get_parser_info.outputs.short_hash }}\")"
+          echo "Expected line fragment: $EXPECTED_LINE"
+          
+          # Kiểm tra xem dòng có tồn tại không, sử dụng Fgrep cho chuỗi cố định
+          # và trích dẫn đúng cách để xử lý các ký tự đặc biệt trong grep.
+          # Thay thế dấu ngoặc đơn bằng dấu thoát cho grep
+          grep -F "$EXPECTED_LINE" build.gradle.kts
           if [ $? -ne 0 ]; then
-            echo "Failed to update build.gradle.kts with the new hash!"
+            echo "Failed to update build.gradle.kts with the new parser information!"
+            echo "Searched for: $EXPECTED_LINE"
             exit 1
           fi
+          echo "Verification successful."
 
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
