@@ -1,0 +1,130 @@
+name: Build JAR with Dynamic Parser Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      parser_repo_full:
+        description: 'Full repository for the new parser (e.g., NewOwner/NewParserRepo)'
+        required: true
+        default: 'KotatsuApp/kotatsu-parsers' # Mặc định là repo gốc để lấy hash mới nếu muốn
+      parser_branch:
+        description: 'Branch for the new parser (e.g., master or main)'
+        required: true
+        default: 'master'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Get new parser commit hash and repo details
+        id: get_new_parser_info
+        run: |
+          NEW_PARSER_REPO_FULL="${{ github.event.inputs.parser_repo_full }}"
+          PARSER_BRANCH="${{ github.event.inputs.parser_branch }}"
+
+          echo "Fetching latest commit from $NEW_PARSER_REPO_FULL on branch $PARSER_BRANCH"
+          LATEST_HASH=$(curl -s -L \
+            -H "Accept: application/vnd.github.v3.sha" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$NEW_PARSER_REPO_FULL/commits/$PARSER_BRANCH")
+          
+          if [ -z "$LATEST_HASH" ] || [ "$LATEST_HASH" == "Not Found" ] || [[ "$LATEST_HASH" == *"API rate limit exceeded"* ]] || [[ "$LATEST_HASH" == *"Problems parsing JSON"* ]]; then
+            echo "Error fetching commit hash for $NEW_PARSER_REPO_FULL: $LATEST_HASH"
+            echo "Please ensure the repository and branch are correct and accessible."
+            # Sử dụng một giá trị placeholder hoặc version mặc định nếu không lấy được hash
+            # Điều này giúp build không bị lỗi ngay lập tức nếu API có vấn đề,
+            # nhưng có thể không phải là version mong muốn.
+            # Lấy hash hiện tại của KotatsuApp:kotatsu-parsers làm fallback cứng.
+            # Bạn có thể thay đổi logic fallback này nếu muốn.
+            LATEST_HASH="16b8bf9328" # Hash gốc của KotatsuApp:kotatsu-parsers
+            NEW_PARSER_REPO_FULL="KotatsuApp/kotatsu-parsers" # Repo gốc làm fallback
+            echo "Using fallback version: $LATEST_HASH for $NEW_PARSER_REPO_FULL"
+          fi
+          
+          NEW_PARSER_OWNER=$(echo "$NEW_PARSER_REPO_FULL" | cut -d'/' -f1)
+          NEW_PARSER_REPO_NAME=$(echo "$NEW_PARSER_REPO_FULL" | cut -d'/' -f2)
+          SHORT_HASH=$(echo "$LATEST_HASH" | cut -c1-10)
+          
+          echo "New Parser Owner: $NEW_PARSER_OWNER"
+          echo "New Parser Repo Name: $NEW_PARSER_REPO_NAME"
+          echo "New Short hash: $SHORT_HASH"
+
+          echo "::set-output name=new_parser_owner::$NEW_PARSER_OWNER"
+          echo "::set-output name=new_parser_repo_name::$NEW_PARSER_REPO_NAME"
+          echo "::set-output name=new_short_hash::$SHORT_HASH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update specific parser version in build.gradle.kts
+        run: |
+          NEW_OWNER="${{ steps.get_new_parser_info.outputs.new_parser_owner }}"
+          NEW_REPO_NAME="${{ steps.get_new_parser_info.outputs.new_parser_repo_name }}"
+          NEW_HASH="${{ steps.get_new_parser_info.outputs.new_short_hash }}"
+
+          if [ -z "$NEW_OWNER" ] || [ -z "$NEW_REPO_NAME" ] || [ -z "$NEW_HASH" ]; then
+            echo "New parser owner, repo name, or short hash is empty. Skipping update."
+            # Có thể thêm exit 1 ở đây nếu bạn muốn build thất bại nếu không có thông tin mới
+            # exit 1 
+            # Hoặc để build tiếp tục với phiên bản hiện tại trong build.gradle.kts
+            echo "Build will continue with the existing parser version in build.gradle.kts."
+          else
+            # Các giá trị này xác định dòng dependency *gốc* mà chúng ta muốn thay thế.
+            # Hãy chắc chắn rằng chúng khớp với những gì có trong build.gradle.kts của bạn.
+            ORIGINAL_PARSER_OWNER="KotatsuApp"
+            ORIGINAL_PARSER_REPO_NAME="kotatsu-parsers"
+
+            echo "Attempting to replace: com.github.$ORIGINAL_PARSER_OWNER:$ORIGINAL_PARSER_REPO_NAME"
+            echo "With: com.github.$NEW_OWNER:$NEW_REPO_NAME:$NEW_HASH"
+            
+            # Lệnh sed này sẽ chỉ thay thế dòng có "com.github.KotatsuApp:kotatsu-parsers"
+            # Nó tìm kiếm dòng `implementation("com.github.KotatsuApp:kotatsu-parsers:ANY_VERSION")`
+            # và thay thế owner, repo name, và version bằng các giá trị mới.
+            sed -i -E 's,(implementation\("com\.github\.)'$ORIGINAL_PARSER_OWNER':'$ORIGINAL_PARSER_REPO_NAME':[^"]+("\)),\1'"$NEW_OWNER"':'"$NEW_REPO_NAME"':'"$NEW_HASH"'\2,' build.gradle.kts
+            
+            echo "build.gradle.kts after potential update:"
+            cat build.gradle.kts
+          fi
+      
+      - name: Verify build.gradle.kts (check clikt-core)
+        run: |
+          echo "Verifying clikt-core dependency is still intact:"
+          # Kiểm tra xem dòng clikt-core có còn tồn tại và đúng phiên bản không
+          grep -F 'implementation("com.github.ajalt.clikt:clikt-core:5.0.3")' build.gradle.kts
+          if [ $? -ne 0 ]; then
+            echo "ERROR: clikt-core dependency line is missing or incorrect in build.gradle.kts!"
+            exit 1
+          fi
+          echo "clikt-core dependency verified."
+
+          echo "Verifying updated parser dependency (if update occurred):"
+          # Nếu không có lỗi và update đã chạy, kiểm tra dòng mới
+          # Điều này có thể cần logic phức tạp hơn nếu update bị skip
+          if [ -n "${{ steps.get_new_parser_info.outputs.new_short_hash }}" ] && \
+             [ -n "${{ steps.get_new_parser_info.outputs.new_parser_owner }}" ] && \
+             [ -n "${{ steps.get_new_parser_info.outputs.new_parser_repo_name }}" ]; then
+            EXPECTED_PARSER_LINE="implementation(\"com.github.${{ steps.get_new_parser_info.outputs.new_parser_owner }}:${{ steps.get_new_parser_info.outputs.new_parser_repo_name }}:${{ steps.get_new_parser_info.outputs.new_short_hash }}\")"
+            echo "Expected new parser line: $EXPECTED_PARSER_LINE"
+            grep -F "$EXPECTED_PARSER_LINE" build.gradle.kts || echo "Parser line might not have been updated as expected (e.g., if fallback was used or skip logic triggered)"
+          fi
+
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Build with Gradle
+        run: ./gradlew shadowJar
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotatsu-dl
+          path: build/libs/kotatsu-dl.jar
