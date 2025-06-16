@@ -7,6 +7,7 @@ import okhttp3.Response
 import okio.IOException
 import org.koitharu.kotatsu.dl.util.CommonHeaders
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
+import org.koitharu.kotatsu.parsers.core.AbstractMangaParser
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaSource
 import org.koitharu.kotatsu.parsers.util.mergeWith
@@ -33,12 +34,15 @@ class CommonHeadersInterceptor(
 		if (headersBuilder[CommonHeaders.USER_AGENT] == null) {
 			headersBuilder[CommonHeaders.USER_AGENT] = context.getDefaultUserAgent()
 		}
+
 		if (headersBuilder[CommonHeaders.REFERER] == null && parser != null) {
-            // ENGLISH NOTE: The fix is here. We now access 'domain' through 'parser.source'.
-            // This is because the 'domain' extension property is now defined for the MangaSource class.
-			val idn = IDN.toASCII(parser.source.id.substringAfter('@'))
-            headersBuilder[CommonHeaders.REFERER] = "https://$idn/"
+			val domain = (parser as? AbstractMangaParser)?.domain
+			if (domain != null) {
+				val idn = IDN.toASCII(domain)
+				headersBuilder[CommonHeaders.REFERER] = "https://$idn/"
+			}
 		}
+
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
 		return if (parser is Interceptor) {
 			parser.interceptSafe(ProxyChain(chain, newRequest))
