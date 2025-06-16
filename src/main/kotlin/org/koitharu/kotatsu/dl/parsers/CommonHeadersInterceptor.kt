@@ -9,6 +9,7 @@ import org.koitharu.kotatsu.dl.util.CommonHeaders
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.koitharu.kotatsu.parsers.util.domain
 import org.koitharu.kotatsu.parsers.util.mergeWith
 import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import java.net.IDN
@@ -34,6 +35,8 @@ class CommonHeadersInterceptor(
 			headersBuilder[CommonHeaders.USER_AGENT] = context.getDefaultUserAgent()
 		}
 		if (headersBuilder[CommonHeaders.REFERER] == null && parser != null) {
+            // ENGLISH NOTE: The fix is here. We now access 'domain' through 'parser.source'.
+            // This is because the 'domain' extension property is now defined for the MangaSource class.
 			val idn = IDN.toASCII(parser.source.domain)
             headersBuilder[CommonHeaders.REFERER] = "https://$idn/"
 		}
@@ -57,10 +60,9 @@ class CommonHeadersInterceptor(
 	}
 
 	private class ProxyChain(
-		private val delegate: Chain,
-		private val request: Request,
-	) : Chain by delegate {
-
-		override fun request(): Request = request
+		private val originalChain: Chain,
+		private val newRequest: Request
+	) : Chain by originalChain {
+		override fun request(): Request = newRequest
 	}
 }
