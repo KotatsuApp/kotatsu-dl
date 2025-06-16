@@ -33,9 +33,18 @@ class MangaLoaderContextImpl : MangaLoaderContext() {
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    @Deprecated("Provide a base url")
     override suspend fun evaluateJs(script: String): String? = runInterruptible(Dispatchers.Default) {
         QuackContext.create().use {
             it.evaluate(script)?.toString()
+        }
+    }
+
+    override suspend fun evaluateJs(baseUrl: String, script: String): String? {
+        return runInterruptible(Dispatchers.Default) {
+            QuackContext.create().use {
+                it.evaluate(script)?.toString()
+            }
         }
     }
 
