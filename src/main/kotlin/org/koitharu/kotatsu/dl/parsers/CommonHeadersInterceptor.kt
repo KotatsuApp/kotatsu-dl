@@ -6,6 +6,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okio.IOException
 import org.koitharu.kotatsu.dl.util.CommonHeaders
+import org.koitharu.kotatsu.parsers.InternalParsersApi
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.core.AbstractMangaParser
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
@@ -14,6 +15,8 @@ import org.koitharu.kotatsu.parsers.util.mergeWith
 import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import java.net.IDN
 
+// It explicitly tells the compiler that we are aware of using an internal, potentially unstable API.
+@OptIn(InternalParsersApi::class)
 class CommonHeadersInterceptor(
 	private val context: MangaLoaderContext
 ) : Interceptor {
@@ -35,6 +38,7 @@ class CommonHeadersInterceptor(
 			headersBuilder[CommonHeaders.USER_AGENT] = context.getDefaultUserAgent()
 		}
 
+		// The @OptIn annotation at the top of the file allows this code to compile.
 		if (headersBuilder[CommonHeaders.REFERER] == null && parser != null) {
 			val domain = (parser as? AbstractMangaParser)?.domain
 			if (domain != null) {
