@@ -9,7 +9,6 @@ import org.koitharu.kotatsu.dl.util.CommonHeaders
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.domain
 import org.koitharu.kotatsu.parsers.util.mergeWith
 import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import java.net.IDN
