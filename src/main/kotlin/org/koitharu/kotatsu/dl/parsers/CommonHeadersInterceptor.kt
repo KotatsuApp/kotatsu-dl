@@ -34,7 +34,7 @@ class CommonHeadersInterceptor(
 			headersBuilder[CommonHeaders.USER_AGENT] = context.getDefaultUserAgent()
 		}
 		if (headersBuilder[CommonHeaders.REFERER] == null && parser != null) {
-			val idn = IDN.toASCII(source.domain)
+			val idn = IDN.toASCII(parser.domain)
             headersBuilder[CommonHeaders.REFERER] = "https://$idn/"
 		}
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
