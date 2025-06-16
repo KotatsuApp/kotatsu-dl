@@ -9,7 +9,6 @@ import org.koitharu.kotatsu.dl.util.CommonHeaders
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.util.domain
 import org.koitharu.kotatsu.parsers.util.mergeWith
 import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import java.net.IDN
@@ -37,7 +36,7 @@ class CommonHeadersInterceptor(
 		if (headersBuilder[CommonHeaders.REFERER] == null && parser != null) {
             // ENGLISH NOTE: The fix is here. We now access 'domain' through 'parser.source'.
             // This is because the 'domain' extension property is now defined for the MangaSource class.
-			val idn = IDN.toASCII(parser.source.domain)
+			val idn = IDN.toASCII(parser.source.id.substringAfter('@'))
             headersBuilder[CommonHeaders.REFERER] = "https://$idn/"
 		}
 		val newRequest = request.newBuilder().headers(headersBuilder.build()).build()
