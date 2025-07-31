@@ -1,6 +1,5 @@
 package org.koitharu.kotatsu.dl.parsers
 
-import com.koushikdutta.quack.QuackContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import okhttp3.CookieJar
@@ -17,10 +16,14 @@ import org.koitharu.kotatsu.parsers.util.requireBody
 import java.awt.image.BufferedImage
 import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
+import javax.script.ScriptEngineManager
+
 
 class MangaLoaderContextImpl : MangaLoaderContext() {
 
     override val cookieJar: CookieJar = InMemoryCookieJar()
+
+    private val scriptEngineManager = ScriptEngineManager()
 
     override val httpClient: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
@@ -37,9 +40,9 @@ class MangaLoaderContextImpl : MangaLoaderContext() {
     override suspend fun evaluateJs(script: String): String? = evaluateJs("", script)
 
     override suspend fun evaluateJs(baseUrl: String, script: String): String? = runInterruptible(Dispatchers.Default) {
-        QuackContext.create().use {
-            it.evaluate(script)?.toString()
-        }
+        val nashorn = scriptEngineManager.getEngineByName("nashorn")
+            ?: error("JavaScript engine is not available")
+        nashorn.eval(script)?.toString()?.takeUnless { it.isEmpty() || it == "null" }
     }
 
     override fun getConfig(source: MangaSource): MangaSourceConfig = DefaultMangaSourceConfig()

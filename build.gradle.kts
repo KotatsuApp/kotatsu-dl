@@ -34,7 +34,7 @@ dependencies {
     implementation("com.github.KotatsuApp:kotatsu-parsers:14cff0d651")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okio:okio:3.11.0")
-    implementation("io.webfolder:quickjs:1.1.0")
+    implementation("org.openjdk.nashorn:nashorn-core:15.6")
     implementation("org.json:json:20240303")
     implementation("me.tongfei:progressbar:0.10.1")
     implementation("androidx.collection:collection:1.5.0")
