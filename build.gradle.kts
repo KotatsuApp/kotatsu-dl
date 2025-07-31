@@ -31,7 +31,7 @@ dependencies {
     testImplementation(kotlin("test"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
     implementation("com.github.ajalt.clikt:clikt-core:5.0.3")
-    implementation("com.github.KotatsuApp:kotatsu-parsers:16b8bf9328")
+    implementation("com.github.KotatsuApp:kotatsu-parsers:14cff0d651")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okio:okio:3.11.0")
     implementation("io.webfolder:quickjs:1.1.0")
