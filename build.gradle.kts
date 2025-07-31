@@ -2,7 +2,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     kotlin("jvm") version "2.0.20"
-    id("com.gradleup.shadow") version "8.3.3"
+    id("com.gradleup.shadow") version "8.3.8"
 }
 
 group = "org.koitharu"
@@ -18,7 +18,9 @@ tasks.withType<ShadowJar> {
     archiveBaseName = "kotatsu-dl"
     archiveClassifier = ""
     archiveVersion = ""
-    minimize()
+    minimize {
+        exclude(dependency("org.openjdk.nashorn:.*:.*"))
+    }
 }
 
 repositories {
